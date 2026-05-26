@@ -118,7 +118,9 @@ class VTuberViewModel(application: Application) : AndroidViewModel(application) 
                     speechRecognizer = SpeechRecognizer.createSpeechRecognizer(getApplication())
                     speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                         override fun onReadyForSpeech(params: Bundle?) {
-                            _uiState.update { it.copy(isListening = true, activeSubtitles = "Слушаю тебя...") }
+                            viewModelScope.launch(Dispatchers.Main) {
+                                _uiState.update { it.copy(isListening = true, activeSubtitles = "Слушаю тебя...") }
+                            }
                         }
 
                         override fun onBeginningOfSpeech() {}
@@ -126,26 +128,33 @@ class VTuberViewModel(application: Application) : AndroidViewModel(application) 
                         override fun onBufferReceived(buffer: ByteArray?) {}
                         
                         override fun onEndOfSpeech() {
-                            _uiState.update { it.copy(isListening = false, isThinking = true) }
+                            viewModelScope.launch(Dispatchers.Main) {
+                                _uiState.update { it.copy(isListening = false, isThinking = true) }
+                            }
                         }
 
                         override fun onError(error: Int) {
-                            _uiState.update { 
-                                it.copy(
-                                    isListening = false, 
-                                    isThinking = false,
-                                    activeSubtitles = "Не расслышала... Попробуй еще раз или напиши!"
-                                ) 
+                            viewModelScope.launch(Dispatchers.Main) {
+                                _uiState.update { 
+                                    it.copy(
+                                        isListening = false, 
+                                        isThinking = false,
+                                        activeSubtitles = "Не расслышала... Попробуй еще раз или напиши!"
+                                    ) 
+                                }
                             }
                             Log.e("VTuberSTT", "Speech Recognizer error code: $error")
                         }
 
                         override fun onResults(results: Bundle?) {
-                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            if (!matches.isNullOrEmpty()) {
-                                processUserMessage(matches[0])
-                            } else {
-                                _uiState.update { it.copy(isThinking = false, activeSubtitles = "Пустой ввод. Попробуй еще раз!") }
+                            viewModelScope.launch(Dispatchers.Main) {
+                                _uiState.update { it.copy(isListening = false) }
+                                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                                if (!matches.isNullOrEmpty()) {
+                                    processUserMessage(matches[0])
+                                } else {
+                                    _uiState.update { it.copy(isThinking = false, activeSubtitles = "Пустой ввод. Попробуй еще раз!") }
+                                }
                             }
                         }
 
@@ -165,28 +174,43 @@ class VTuberViewModel(application: Application) : AndroidViewModel(application) 
         // Stop active TTS speaking before starting listening
         stopSpeaking()
         
-        val recognizer = speechRecognizer
-        if (recognizer != null) {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Говорите с Кирой...")
-            }
-            viewModelScope.launch(Dispatchers.Main) {
+        viewModelScope.launch(Dispatchers.Main) {
+            if (_uiState.value.isListening) {
                 try {
+                    speechRecognizer?.stopListening()
+                    speechRecognizer?.cancel()
+                } catch (e: Exception) {
+                    Log.e("VTuberSTT", "Error stopping speech: ${e.message}")
+                }
+                _uiState.update { it.copy(isListening = false) }
+                return@launch
+            }
+
+            val recognizer = speechRecognizer
+            if (recognizer != null) {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Говорите с Кирой...")
+                }
+                try {
+                    // Force-cancel any previous active session before starting a new one
+                    recognizer.cancel()
                     recognizer.startListening(intent)
+                    _uiState.update { it.copy(isListening = true) }
                 } catch (e: Exception) {
                     _uiState.update { 
                         it.copy(
+                            isListening = false,
                             activeSubtitles = "Ошибка запуска микрофона. Напишите текстом!",
                             inputMethodHint = "Ошибка STT: ${e.localizedMessage}"
                         ) 
                     }
                 }
-            }
-        } else {
-            _uiState.update { 
-                it.copy(activeSubtitles = "Микрофон недоступен на этом девайсе. Используйте клавиатуру!") 
+            } else {
+                _uiState.update { 
+                    it.copy(activeSubtitles = "Микрофон недоступен на этом девайсе. Используйте клавиатуру!") 
+                }
             }
         }
     }
@@ -263,20 +287,21 @@ class VTuberViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun processUserMessage(text: String) {
-        // Stop current speech
-        stopSpeaking()
+        viewModelScope.launch(Dispatchers.Main) {
+            // Stop current speech
+            stopSpeaking()
 
-        // Add user message to state
-        _uiState.update { state ->
-            state.copy(
-                messages = state.messages + Message("user", text),
-                isThinking = true,
-                activeSubtitles = "Кира думает..."
-            )
-        }
+            // Add user message to state & disable mic active listening indicators
+            _uiState.update { state ->
+                state.copy(
+                    messages = state.messages + Message("user", text),
+                    isThinking = true,
+                    activeSubtitles = "Кира думает...",
+                    isListening = false
+                )
+            }
 
-        // Call Gemini LLM API
-        viewModelScope.launch {
+            // Call Gemini LLM API
             val response = callGeminiApi(text)
             handleKiraResponse(response)
         }
