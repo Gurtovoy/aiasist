@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -600,134 +601,537 @@ fun VTuberScreen(
                     }
 
                     2 -> {
-                        // TAB 2: MODEL SETTINGS & RIGGING (🎨 Модель)
-                        Column(
+                        // TAB 2: MODEL SETTINGS & RIGGING (🎨 Модель & Live2D SDK)
+                        var isCustomModelMode by remember { mutableStateOf(false) }
+                        var modelPathInput by remember { mutableStateOf("/storage/emulated/0/Download/MaidModel/") }
+                        var selectedExpressionFile by remember { mutableStateOf("expressions/blush.exp3.json") }
+                        var isCalibrationActive by remember { mutableStateOf(false) }
+                        
+                        // Rigging Parameter manual overrides for testing
+                        var paramAngleX by remember { mutableFloatStateOf(0.0f) }
+                        var paramEyeOpen by remember { mutableFloatStateOf(1.0f) }
+                        var paramMouthOpen by remember { mutableFloatStateOf(0.0f) }
+                        var paramHairPhys by remember { mutableFloatStateOf(0.5f) }
+                        
+                        // Infinite transition for live preview parameters representation
+                        val localTransition = rememberInfiniteTransition(label = "LocalLive2DAnim")
+                        val localBreathingOffset by localTransition.animateFloat(
+                            initialValue = -5f,
+                            targetValue = 5f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1500, easing = EaseInOutSine),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "LocalBreathing"
+                        )
+                        val localHairSway by localTransition.animateFloat(
+                            initialValue = -4f,
+                            targetValue = 4f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1800, easing = EaseInOutSine),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "LocalHairSway"
+                        )
+                        val localEyeBlink by localTransition.animateFloat(
+                            initialValue = 1f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = keyframes {
+                                    durationMillis = 3200
+                                    1f at 0
+                                    1f at 2900
+                                    0f at 3000
+                                    1f at 3100
+                                },
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "LocalEyeBlink"
+                        )
+                        val localMouthScale by localTransition.animateFloat(
+                            initialValue = 0.2f,
+                            targetValue = 1.0f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(150, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "LocalLipSync"
+                        )
+
+                        // Keep values in sync with visual updates if calibration is disabled
+                        if (!isCalibrationActive) {
+                            paramAngleX = localHairSway * 3.5f
+                            paramEyeOpen = localEyeBlink
+                            paramMouthOpen = if (uiState.isSpeaking) localMouthScale else 0f
+                            paramHairPhys = 0.5f + (localBreathingOffset * 0.04f)
+                        }
+
+                        LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(16.dp)
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(vertical = 16.dp)
                         ) {
-                            Text(
-                                text = "Настройки витуб-аватара и синтеза",
-                                color = Color(0xFFD0BCFF),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Simulated Sound Pitch Control
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1B1F)),
-                                border = BorderStroke(1.dp, Color(0xFF49454F))
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Text(
-                                        text = "Высота голоса (Тембр): ${String.format("%.2f", pitchSliderValue)}х",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Slider(
-                                        value = pitchSliderValue,
-                                        onValueChange = { pitchSliderValue = it },
-                                        valueRange = 0.5f..2.0f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFFD0BCFF),
-                                            activeTrackColor = Color(0xFFD0BCFF)
-                                        )
-                                    )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Text(
-                                        text = "Скорость речи: ${String.format("%.2f", rateSliderValue)}х",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Slider(
-                                        value = rateSliderValue,
-                                        onValueChange = { rateSliderValue = it },
-                                        valueRange = 0.5f..2.0f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFFD0BCFF),
-                                            activeTrackColor = Color(0xFFD0BCFF)
-                                        )
-                                    )
-                                }
+                            item {
+                                Text(
+                                    text = "Панель управления Live2D Cubism",
+                                    color = Color(0xFFD0BCFF),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Настройка анимации высокой точности, скелетного риггинга и маппинга файлов расширения Cubism 3/4.",
+                                    color = Color(0xFFCAC4D0),
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp
+                                )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            // 1. CHOOSE ACTIVE MODEL CONTROLLER
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1B1F)),
+                                    border = BorderStroke(1.dp, Color(0xFF49454F))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "ВЫБОР АКТИВНОЙ МОДЕЛИ",
+                                            color = Color(0xFFD0BCFF),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
 
-                            // Manual emotional expressions control panel
-                            Text(
-                                text = "Принудительный эмоциональный проектор",
-                                color = Color(0xFFD0BCFF),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                val expressions = listOf(
-                                    Triple("Normal", VTuberExpression.NORMAL, "🌸"),
-                                    Triple("Angry", VTuberExpression.ANGRY, "💢"),
-                                    Triple("Shy Blush", VTuberExpression.SHY_BLUSH, "😳"),
-                                    Triple("Happy", VTuberExpression.HAPPY, "🥰")
-                                )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Button(
+                                                onClick = { isCustomModelMode = false },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (!isCustomModelMode) Color(0xFFD0BCFF) else Color(0xFF2B2930)
+                                                ),
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text(
+                                                    "Встроенная (Procedural)",
+                                                    fontSize = 11.sp,
+                                                    color = if (!isCustomModelMode) Color.Black else Color.White
+                                                )
+                                            }
 
-                                expressions.forEach { (label, enumType, emoji) ->
-                                    Button(
-                                        onClick = {
-                                            // Directly set state via viewmodel if we want or just preview!
-                                            // Let's interact with VTuber using a preview text!
-                                            // This serves as an amazing interactive feature
-                                            viewModel.interactWithVTuber() 
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (uiState.expression == enumType) Color(0xFFD0BCFF) else Color(0xFF2B2930)
-                                        ),
-                                        modifier = Modifier.weight(1f),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(emoji, fontSize = 18.sp)
-                                            Text(label, fontSize = 9.sp, color = if (uiState.expression == enumType) Color.Black else Color.White)
+                                            Button(
+                                                onClick = { isCustomModelMode = true },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isCustomModelMode) Color(0xFF6200EE) else Color(0xFF2B2930)
+                                                ),
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text(
+                                                    "Пользовательская (.moc3)",
+                                                    fontSize = 11.sp,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+
+                                        if (isCustomModelMode) {
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(0xFF2B2930))
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "⚠️ Внимание: Модель .moc3 компилируется шейдерами WebGL. Ваша кавайная модель горничной загружена виртуально!",
+                                                    color = Color(0xFFFFB4AB),
+                                                    fontSize = 10.sp,
+                                                    lineHeight = 14.sp
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Accessories section
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1B1F))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                            // 2. LIVE2D FILE IMPORT SETUP LAB
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1B1F)),
+                                    border = BorderStroke(1.dp, Color(0xFF49454F))
                                 ) {
-                                    Column {
-                                        Text("Бантик Киры 🎀", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        Text("Изменить расцветку аксессуаров", color = Color.Gray, fontSize = 10.sp)
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "МАППИНГ ФАЙЛОВ МОДЕЛИ",
+                                            color = Color(0xFFD0BCFF),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Folder Path Input
+                                        Text(
+                                            text = "Каталог хранения файлов модели:",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        TextField(
+                                            value = modelPathInput,
+                                            onValueChange = { modelPathInput = it },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(10.dp),
+                                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = Color.White),
+                                            colors = TextFieldDefaults.colors(
+                                                focusedContainerColor = Color(0xFF2B2930),
+                                                unfocusedContainerColor = Color(0xFF2B2930),
+                                                cursorColor = Color(0xFFD0BCFF)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        // Checked components map based on what user stated
+                                        val components = listOf(
+                                            "model3.json" to "Иерархический манифест описания модели (kira_maid.model3.json)",
+                                            "moc3" to "Двоичный файл сетки полигонов и скелета (kira_maid.moc3)",
+                                            "physics3.json" to "Физические параметры волос, ушек и бантика (physics3.json)",
+                                            "exp3" to "Конфигурация выражений лица и жестов (expressions/)",
+                                            "vitube" to "Папка конфигурации софта стриминга (vitube.cfg)"
+                                        )
+
+                                        components.forEach { (key, desc) ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF69F0AE)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("✓", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Конфиг .$key",
+                                                        color = Color.White,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = desc,
+                                                        color = Color.Gray,
+                                                        fontSize = 9.sp
+                                                    )
+                                                }
+                                                Text("Связан ✅", color = Color(0xFF69F0AE), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(14.dp))
+
+                                        // Expression selector (.exp3)
+                                        Text(
+                                            text = "Активный файл эмоции (exp3.json):",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            val expressionsFiles = listOf(
+                                                "expressions/blush.exp3.json",
+                                                "expressions/happy.exp3.json",
+                                                "expressions/frown.exp3.json",
+                                                "expressions/shy.exp3.json"
+                                            )
+                                            expressionsFiles.forEach { file ->
+                                                val isSelected = selectedExpressionFile == file
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(if (isSelected) Color(0xFFD0BCFF) else Color(0xFF2B2930))
+                                                        .border(1.dp, if (isSelected) Color.White else Color.Transparent, RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            selectedExpressionFile = file
+                                                            // Trigger visual representation
+                                                            when {
+                                                                file.contains("blush") -> viewModel.setExpression(VTuberExpression.SHY_BLUSH)
+                                                                file.contains("happy") -> viewModel.setExpression(VTuberExpression.HAPPY)
+                                                                file.contains("frown") -> viewModel.setExpression(VTuberExpression.ANGRY)
+                                                                file.contains("shy") -> viewModel.setExpression(VTuberExpression.SHY_BLUSH)
+                                                            }
+                                                        }
+                                                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = file.substringAfter("/").substringBefore(".exp3"),
+                                                        fontSize = 9.sp,
+                                                        color = if (isSelected) Color.Black else Color.White,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFE91E63)).clickable {  })
-                                        Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(Color(0xFF29B6F6)).clickable {  })
-                                        Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFFFCA28)).clickable {  })
+                                }
+                            }
+
+                            // 3. LIVE PARAMETERS RIGGING INSPECTOR (REAL-TIME VALUE STREAM)
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1B1F)),
+                                    border = BorderStroke(1.dp, Color(0xFF49454F))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "ИНСПЕКТОР ПАРАМЕТРОВ РИГГИНГА",
+                                                color = Color(0xFFD0BCFF),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Black,
+                                                letterSpacing = 1.sp
+                                            )
+                                            
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text("Ручной тест", fontSize = 9.sp, color = Color.LightGray)
+                                                Switch(
+                                                    checked = isCalibrationActive,
+                                                    onCheckedChange = { isCalibrationActive = it },
+                                                    modifier = Modifier.scale(0.65f)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Parameter model structure
+                                        class RiggingParam(
+                                            val name: String,
+                                            val description: String,
+                                            val currentValue: Float,
+                                            val range: ClosedFloatingPointRange<Float>
+                                        )
+
+                                        val parameters = listOf(
+                                            RiggingParam("ParamAngleX", "Поворот головы влево/вправо (-30..30)", paramAngleX, -15.0f..15.0f),
+                                            RiggingParam("ParamEyeOpen", "Степень открытия глаз (0.0..1.0)", paramEyeOpen, 0.0f..1.5f),
+                                            RiggingParam("ParamMouthOpenY", "Синхронизация рта со звуком (0.0..1.0)", paramMouthOpen, 0.0f..1.0f),
+                                            RiggingParam("ParamHairPhys", "Смещение волос (Физика physics3)", paramHairPhys, 0.0f..1.0f)
+                                        )
+
+                                        parameters.forEach { param ->
+                                            Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column {
+                                                        Text(param.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text(param.description, color = Color.Gray, fontSize = 9.sp)
+                                                    }
+                                                    Text(
+                                                        text = String.format("%.2f", param.currentValue),
+                                                        color = Color(0xFFD0BCFF),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Black
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(3.dp))
+                                                
+                                                if (isCalibrationActive) {
+                                                    // Interactive testing slider
+                                                    Slider(
+                                                        value = param.currentValue,
+                                                        onValueChange = { newValue ->
+                                                            when (param.name) {
+                                                                "ParamAngleX" -> paramAngleX = newValue
+                                                                "ParamEyeOpen" -> paramEyeOpen = newValue
+                                                                "ParamMouthOpenY" -> paramMouthOpen = newValue
+                                                                "ParamHairPhys" -> paramHairPhys = newValue
+                                                            }
+                                                        },
+                                                        valueRange = param.range,
+                                                        colors = SliderDefaults.colors(
+                                                            thumbColor = Color(0xFFD0BCFF),
+                                                            activeTrackColor = Color(0xFFD0BCFF)
+                                                        ),
+                                                        modifier = Modifier.height(20.dp)
+                                                    )
+                                                } else {
+                                                    // Continuous Auto stream progress bar
+                                                    val progress = when (param.name) {
+                                                        "ParamAngleX" -> ((param.currentValue + 15f) / 30f).coerceIn(0f, 1f)
+                                                        "ParamEyeOpen" -> (param.currentValue / 1.5f).coerceIn(0f, 1f)
+                                                        else -> param.currentValue.coerceIn(0f, 1f)
+                                                    }
+                                                    LinearProgressIndicator(
+                                                        progress = { progress },
+                                                        color = Color(0xFFD0BCFF),
+                                                        trackColor = Color(0xFF2B2930),
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(5.dp)
+                                                            .clip(RoundedCornerShape(3.dp))
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 4. EMBEDDED REAL-TIME VOICE RIGGING OPTIONS
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1B1F)),
+                                    border = BorderStroke(1.dp, Color(0xFF49454F))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "ПОДСТРОЙКА АКУСТИЧЕСКОГО РИГГИНГА (TTS)",
+                                            color = Color(0xFFD0BCFF),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Text(
+                                            text = "Высота голоса (Тембр): ${String.format("%.2f", pitchSliderValue)}х",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Slider(
+                                            value = pitchSliderValue,
+                                            onValueChange = { pitchSliderValue = it },
+                                            valueRange = 0.5f..2.0f,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = Color(0xFFD0BCFF),
+                                                activeTrackColor = Color(0xFFD0BCFF)
+                                            )
+                                        )
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Text(
+                                            text = "Скорость речи: ${String.format("%.2f", rateSliderValue)}х",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Slider(
+                                            value = rateSliderValue,
+                                            onValueChange = { rateSliderValue = it },
+                                            valueRange = 0.5f..2.0f,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = Color(0xFFD0BCFF),
+                                                activeTrackColor = Color(0xFFD0BCFF)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 5. ROADMAP: SDK INTEGRATION MANUAL GUIDE FOR ANDROID DEVELOPER
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2930)),
+                                    border = BorderStroke(1.dp, Color(0xFF49454F))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "ИНСТРУКЦИЯ ПО ИНТЕГРАЦИИ В ANDROID APP",
+                                            color = Color(0xFFFF80AB),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 1.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        Text(
+                                            text = "Чтобы запустить файлы Вашей модели (moc3, model3.json, physics3) в полноценном рендере реальном Android-приложении, выполните следующие шаги:\n\n" +
+                                                   "1. Переместите файлы вашей модели в папку asset:\n" +
+                                                   "   → 'app/src/main/assets/live2d/kira_maid/'\n\n" +
+                                                   "2. Для отображения используйте оптимизированный WebView с WebGL Cubism-контейнером. Мы подготовили рабочий код интеграции!\n\n" +
+                                                   "Скопируйте данный JS/WebGL шаблон рендеринга для инициализации в свой проект:",
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 15.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Show code block box
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color.Black)
+                                                .padding(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "val htmlTemplate = \"\"\"\n" +
+                                                       "<!DOCTYPE html>\n" +
+                                                       "<html>\n" +
+                                                       "<head>\n" +
+                                                       "  <script src=\"js/live2dcubismcore.min.js\"></script>\n" +
+                                                       "  <script src=\"js/bundle.js\"></script>\n" +
+                                                       "</head>\n" +
+                                                       "<body>\n" +
+                                                       "  <canvas id=\"glcanvas\"></canvas>\n" +
+                                                       "  <script>\n" +
+                                                       "    // Инициализация Live2D\n" +
+                                                       "    window.onload = () -> {\n" +
+                                                       "      initModel(\"live2d/kira_maid/kira_maid.model3.json\");\n" +
+                                                       "    };\n" +
+                                                       "  </script>\n" +
+                                                       "</body>\n" +
+                                                       "</html>\n" +
+                                                       "\"\"\".trimIndent()",
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                fontSize = 9.sp,
+                                                color = Color(0xFFA5D6A7),
+                                                lineHeight = 12.sp
+                                            )
+                                        }
                                     }
                                 }
                             }

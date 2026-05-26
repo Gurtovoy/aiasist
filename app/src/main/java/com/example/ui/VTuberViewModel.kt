@@ -489,6 +489,10 @@ class VTuberViewModel(application: Application) : AndroidViewModel(application) 
         speakOut(phrase)
     }
 
+    fun setExpression(expression: VTuberExpression) {
+        _uiState.update { it.copy(expression = expression) }
+    }
+
     override fun onCleared() {
         super.onCleared()
         try {
