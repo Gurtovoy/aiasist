@@ -73,37 +73,42 @@ class VTuberViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun initTextToSpeech() {
-        tts = TextToSpeech(getApplication()) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                isTtsInitialized = true
-                val ttsLocale = Locale("ru")
-                val result = tts?.setLanguage(ttsLocale)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e("VTuberTTS", "Russian language is not supported or missing data")
-                    _uiState.update { it.copy(inputMethodHint = "TTS на русском не поддерживается, текст активен") }
+        try {
+            tts = TextToSpeech(getApplication()) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    isTtsInitialized = true
+                    val ttsLocale = Locale("ru")
+                    val result = tts?.setLanguage(ttsLocale)
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        Log.e("VTuberTTS", "Russian language is not supported or missing data")
+                        _uiState.update { it.copy(inputMethodHint = "TTS на русском не поддерживается, текст активен") }
+                    } else {
+                        // Speech settings
+                        tts?.setPitch(1.35f) // high pitch for cute anime VTuber voice
+                        tts?.setSpeechRate(1.05f) // slightly faster speech
+                    }
                 } else {
-                    // Speech settings
-                    tts?.setPitch(1.35f) // high pitch for cute anime VTuber voice
-                    tts?.setSpeechRate(1.05f) // slightly faster speech
+                    Log.e("VTuberTTS", "Initialization of TTS failed")
                 }
-            } else {
-                Log.e("VTuberTTS", "Initialization of TTS failed")
             }
+
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {
+                    _uiState.update { it.copy(isSpeaking = true) }
+                }
+
+                override fun onDone(utteranceId: String?) {
+                    _uiState.update { it.copy(isSpeaking = false) }
+                }
+
+                override fun onError(utteranceId: String?) {
+                    _uiState.update { it.copy(isSpeaking = false) }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e("VTuberTTS", "Failed to initialize TextToSpeech: ${e.message}")
+            _uiState.update { it.copy(inputMethodHint = "Голосовой синтез речи (TTS) недопущен") }
         }
-
-        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {
-                _uiState.update { it.copy(isSpeaking = true) }
-            }
-
-            override fun onDone(utteranceId: String?) {
-                _uiState.update { it.copy(isSpeaking = false) }
-            }
-
-            override fun onError(utteranceId: String?) {
-                _uiState.update { it.copy(isSpeaking = false) }
-            }
-        })
     }
 
     private fun initSpeechRecognizer() {
