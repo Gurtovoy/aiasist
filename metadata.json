@@ -1,0 +1,6 @@
+{
+  "name": "Kira VTuber AI",
+  "description": "Interactive VTuber Voice AI Assistant with custom expressive animation, speech-to-text, and sassy 18+ mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
