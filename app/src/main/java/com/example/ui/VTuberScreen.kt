@@ -79,6 +79,18 @@ fun VTuberScreen(
     var pitchSliderValue by remember { mutableFloatStateOf(1.35f) }
     var rateSliderValue by remember { mutableFloatStateOf(1.05f) }
 
+    // Model & Rigging Settings (persisted across tab changes)
+    var isCustomModelMode by remember { mutableStateOf(true) }
+    var modelPathInput by remember { mutableStateOf("app/src/main/assets/live2d/kira/") }
+    var selectedExpressionFile by remember { mutableStateOf("expressions/zs1.exp3.json") }
+    var isCalibrationActive by remember { mutableStateOf(false) }
+
+    // Rigging Parameter manual overrides for testing
+    var paramAngleX by remember { mutableFloatStateOf(0.0f) }
+    var paramEyeOpen by remember { mutableFloatStateOf(1.0f) }
+    var paramMouthOpen by remember { mutableFloatStateOf(0.0f) }
+    var paramHairPhys by remember { mutableFloatStateOf(0.5f) }
+
     // Request RECORD_AUDIO Permission contract
     var hasMicPermission by remember {
         mutableStateOf(
@@ -603,17 +615,6 @@ fun VTuberScreen(
 
                     2 -> {
                         // TAB 2: MODEL SETTINGS & RIGGING (🎨 Модель & Live2D SDK)
-                        var isCustomModelMode by remember { mutableStateOf(false) }
-                        var modelPathInput by remember { mutableStateOf("/storage/emulated/0/Download/MaidModel/") }
-                        var selectedExpressionFile by remember { mutableStateOf("expressions/blush.exp3.json") }
-                        var isCalibrationActive by remember { mutableStateOf(false) }
-                        
-                        // Rigging Parameter manual overrides for testing
-                        var paramAngleX by remember { mutableFloatStateOf(0.0f) }
-                        var paramEyeOpen by remember { mutableFloatStateOf(1.0f) }
-                        var paramMouthOpen by remember { mutableFloatStateOf(0.0f) }
-                        var paramHairPhys by remember { mutableFloatStateOf(0.5f) }
-                        
                         // Infinite transition for live preview parameters representation
                         val localTransition = rememberInfiniteTransition(label = "LocalLive2DAnim")
                         val localBreathingOffset by localTransition.animateFloat(
@@ -808,11 +809,11 @@ fun VTuberScreen(
 
                                         // Checked components map based on what user stated
                                         val components = listOf(
-                                            "model3.json" to "Иерархический манифест описания модели (kira_maid.model3.json)",
-                                            "moc3" to "Двоичный файл сетки полигонов и скелета (kira_maid.moc3)",
-                                            "physics3.json" to "Физические параметры волос, ушек и бантика (physics3.json)",
-                                            "exp3" to "Конфигурация выражений лица и жестов (expressions/)",
-                                            "vitube" to "Папка конфигурации софта стриминга (vitube.cfg)"
+                                            "model3.json" to "Иерархический манифест описания модели (Design_genius(1).model3.json)",
+                                            "moc3" to "Двоичный файл сетки полигонов и скелета (Design_genius(1).moc3)",
+                                            "physics3.json" to "Физические параметры волос, ушек и бантика (Design_genius(1).physics3.json)",
+                                            "exp3" to "Конфигурация выражений лица и жестов (kuku.exp3, zs1.exp3, sy.exp3)",
+                                            "vtube.json" to "Файл конфигурации стриминга VTube Studio (Design_genius(1).vtube.json)"
                                         )
 
                                         components.forEach { (key, desc) ->
@@ -864,10 +865,10 @@ fun VTuberScreen(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             val expressionsFiles = listOf(
-                                                "expressions/blush.exp3.json",
-                                                "expressions/happy.exp3.json",
-                                                "expressions/frown.exp3.json",
-                                                "expressions/shy.exp3.json"
+                                                "expressions/zs1.exp3.json",
+                                                "expressions/zs11.exp3.json",
+                                                "expressions/kuku.exp3.json",
+                                                "expressions/sy.exp3.json"
                                             )
                                             expressionsFiles.forEach { file ->
                                                 val isSelected = selectedExpressionFile == file
@@ -881,10 +882,10 @@ fun VTuberScreen(
                                                             selectedExpressionFile = file
                                                             // Trigger visual representation
                                                             when {
-                                                                file.contains("blush") -> viewModel.setExpression(VTuberExpression.SHY_BLUSH)
-                                                                file.contains("happy") -> viewModel.setExpression(VTuberExpression.HAPPY)
-                                                                file.contains("frown") -> viewModel.setExpression(VTuberExpression.ANGRY)
-                                                                file.contains("shy") -> viewModel.setExpression(VTuberExpression.SHY_BLUSH)
+                                                                file.contains("zs11") -> viewModel.setExpression(VTuberExpression.HAPPY)
+                                                                file.contains("zs1") -> viewModel.setExpression(VTuberExpression.SHY_BLUSH)
+                                                                file.contains("kuku") -> viewModel.setExpression(VTuberExpression.ANGRY)
+                                                                file.contains("sy") -> viewModel.setExpression(VTuberExpression.NORMAL)
                                                             }
                                                         }
                                                         .padding(horizontal = 4.dp, vertical = 6.dp),

@@ -1,0 +1,2 @@
+Place your Live2D Kira model files here (e.g., model3.json, .moc3, physics3.json, textures).
+Ensure the main model configuration file is named or referenced correctly.
